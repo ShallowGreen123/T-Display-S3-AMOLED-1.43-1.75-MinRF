@@ -17,6 +17,7 @@ extern int st32r2916_init_flag;
 
 extern SemaphoreHandle_t radioLock;
 
+// LR1121
 extern bool lr1121_get_mode(void);
 extern void lr1121_set_mode(bool mode);
 extern int lr1121_init(void);
@@ -26,9 +27,16 @@ extern void lr1121_recv(void);
 extern int cc1101_init(void);
 extern void cc1101_loop(void);
 
-extern int nfr24_init(void);
+// NRF24
+extern bool nrf24_get_mode(void);
+extern void nrf24_set_mode(bool mode);
+extern int nrf24_init(void);
 extern void nrf24_loop(void);
+extern void nrf24_recv(void);
+extern uint8_t nrf24_get_recv_data(void);
+extern bool nrf24_get_recv_status(void);
 
+// INIT
 int cc1101_spi_init(void);
 int lr1121_spi_init(void);
 int nrf24_spi_init(void);

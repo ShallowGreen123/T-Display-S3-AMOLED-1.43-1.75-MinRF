@@ -78,12 +78,17 @@ bool ui_lr1121_get_mode(void);
 void ui_lr1121_set_mode(bool mode);
 
 // NRF24
-float ui_nfr24_get_freq(void);
-float ui_nfr24_get_bw(void);
-int ui_nfr24_get_power(void);
-int ui_nfr24_get_interval(void);
-void ui_nfr24_init(void);
-void ui_nfr24_send(void);
+float ui_nrf24_get_freq(void);
+float ui_nrf24_get_bw(void);
+int ui_nrf24_get_power(void);
+int ui_nrf24_get_interval(void);
+uint8_t ui_nrf24_get_recv_data(void);
+bool ui_nrf24_get_recv_status(void);
+void ui_nrf24_init(void);
+void ui_nrf24_send(void);
+void ui_nrf24_recv(void);
+bool ui_nrf24_get_mode(void);   // 0: send ; 1: recv
+void ui_nrf24_set_mode(bool mode);
 
 #ifdef __cplusplus
 } /*extern "C"*/

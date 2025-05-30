@@ -1,185 +1,126 @@
 #include <Arduino.h>
-#include <RadioLib.h>
+#include "SPI.h"
+#include "RF24.h"
+#include "nRF24L01.h"
 #include "MinRf.h"
 
 // nRF24 has the following connections:
 // CS pin:    34
 // IRQ pin:   5
 // CE pin:    4
-static nRF24 radio = new Module(NRF24L01_CS, NRF24L01_IQR, NRF24L01_CE, RADIOLIB_NC, rfspi, RADIOLIB_DEFAULT_SPI_SETTINGS);
+#define INTERVAL_MS_TRANSMISSION 250
+#define INTERVAL_MS_SIGNAL_RETRY 250
+#define INTERVAL_MS_SIGNAL_LOST 2500
+static RF24 radio(NRF24L01_CE, NRF24L01_CS);
+static const byte address[6] = "00001";
+static unsigned long lastSignalMillis = 0;
+static bool nrf24_mode = 0;
 
-byte addr[] = {0x00, 0x23, 0x45, 0x67, 0x89};
-
-// save transmission state between loops
-static int transmissionState = RADIOLIB_ERR_NONE;
-
-// flag to indicate that a packet was sent
-static volatile bool transmittedFlag = false;
-
-void nrf24_transmit(void);
-
-static void nrf24_setFlag(void)
+static byte send_data = 0;
+static byte recv_data = 0;
+static bool recv_status = false;
+// NRF24L01 buffer limit is 32 bytes (max struct size)
+struct payload
 {
-    // we sent a packet, set the flag
-    transmittedFlag = true;
-    Serial.println(F("nrf24_setFlag!"));
+    byte data1;
+    char data2;
+};
+payload payload;
+
+void lostConnection();
+
+void nrf24_set_mode(bool mode)
+{
+    nrf24_mode = mode;
+    // Act as transmitter
+    if (mode == 0)
+    {
+        radio.openWritingPipe(address);
+        radio.stopListening();
+    }
+    else
+    {
+        radio.openReadingPipe(0, address);
+        radio.startListening();
+    }
 }
 
-int nfr24_init(void)
+bool nrf24_get_mode(void)
 {
-    // initialize nRF24 with default settings
-    Serial.print(F("[nRF24] Initializing ... "));
-    int state = radio.begin();
-    if (state == RADIOLIB_ERR_NONE)
-    {
-        Serial.println(F("success!"));
-    }
-    else
-    {
-        Serial.print(F("failed, code "));
-        Serial.println(state);
-        return state;
-    }
-
-    // set transmit address
-    // NOTE: address width in bytes MUST be equal to the
-    //       width set in begin() or setAddressWidth()
-    //       methods (5 by default)
-    // byte addr[] = {0x00, 0x23, 0x45, 0x67, 0x89};
-    Serial.print(F("[nRF24] Setting transmit pipe ... "));
-    state = radio.setTransmitPipe(addr);
-    if (state == RADIOLIB_ERR_NONE)
-    {
-        Serial.println(F("success!"));
-    }
-    else
-    {
-        Serial.print(F("failed, code "));
-        Serial.println(state);
-        while (true)
-        {
-            delay(10);
-        }
-    }
-
-    radio.setOutputPower(0);
-
-    // set the function that will be called
-    // when packet transmission is finished
-    // radio.setPacketSentAction(nrf24_setFlag);
-
-    // start transmitting the first packet
-    Serial.print(F("[nRF24] Sending first packet ... "));
-
-    // radio.startReceive();
-
-    // you can transmit C-string or Arduino string up to
-    // 256 characters long
-    // transmissionState = radio.startTransmit("Hello World!");
-
-    const uint8_t transmitBytes = 3;
-
-    uint8_t pipeAddress = 0;
-
-    uint8_t buffer[transmitBytes] = {addr[0], 1, 2};
-    radio.startTransmit(buffer, transmitBytes, pipeAddress);
-    
-    return RADIOLIB_ERR_NONE;
+    return nrf24_mode;
 }
 
-static int count = 0;
-
-void nrf24_transmit(uint8_t item, uint8_t on)
+uint8_t nrf24_get_recv_data(void)
 {
-    const uint8_t transmitBytes = 3;
+    return recv_data;
+}
 
-    uint8_t pipeAddress = 0;
+bool nrf24_get_recv_status(void)
+{
+    return recv_status;
+}
 
-    uint8_t buffer[transmitBytes] = {addr[0], item, on};
+int nrf24_init(void)
+{
+    bool ret = false;
 
-    int state = radio.startTransmit(buffer, transmitBytes, pipeAddress);
-    if (state == RADIOLIB_ERR_NONE)
-    {
-        // the packet was successfully transmitted
-        Serial.println(F("success!"));
-    }
-    else if (state == RADIOLIB_ERR_PACKET_TOO_LONG)
-    {
-        // the supplied packet was longer than 32 bytes
-        Serial.println(F("too long!"));
-    }
-    else if (state == RADIOLIB_ERR_ACK_NOT_RECEIVED)
-    {
-        // acknowledge from destination module
-        // was not received within 15 retries
-        Serial.println(F("ACK not received!"));
-    }
-    else if (state == RADIOLIB_ERR_TX_TIMEOUT)
-    {
-        // timed out while transmitting
-        Serial.println(F("timeout!"));
-    }
-    else
-    {
-        // some other error occurred
-        Serial.print(F("failed, code "));
-        Serial.println(state);
-    }
+    ret = radio.begin();
+    // Append ACK packet from the receiving radio back to the transmitting radio
+    radio.setAutoAck(false); //(true|false)
+    // Set the transmission datarate
+    radio.setDataRate(RF24_250KBPS); //(RF24_250KBPS|RF24_1MBPS|RF24_2MBPS)
+    // Greater level = more consumption = longer distance
+    radio.setPALevel(RF24_PA_MAX); //(RF24_PA_MIN|RF24_PA_LOW|RF24_PA_HIGH|RF24_PA_MAX)
+    // Default value is the maximum 32 bytes
+    radio.setPayloadSize(sizeof(payload));
+    // select mode
+    nrf24_set_mode(nrf24_get_mode());
+
+    return (ret == true);
 }
 
 void nrf24_loop(void)
 {
-    // if (transmittedFlag)
-    // {
-    //     transmittedFlag = false;
+    payload.data1 = send_data++;
+    payload.data2 = 'x';
+    radio.write(&payload, sizeof(payload));
+    Serial.print("Data1:");
+    Serial.println(payload.data1);
+    Serial.print("Data2:");
+    Serial.println(payload.data2);
+    Serial.println("Sent");
+    // delay(INTERVAL_MS_TRANSMISSION);
+}
 
-        nrf24_transmit(1, 2);
-    // }
+void nrf24_recv(void)
+{
+    unsigned long currentMillis = millis();
 
-    delay(200);
+    if (radio.available() > 0)
+    {
+        radio.read(&payload, sizeof(payload));
+        Serial.println("Received");
+        Serial.print("Data1:");
+        Serial.println(payload.data1);
+        Serial.print("Data2:");
+        Serial.println(payload.data2);
 
-    // // check if the previous transmission finished
-    // if (transmittedFlag)
-    // {
-    //     // reset flag
-    //     transmittedFlag = false;
+        recv_data = payload.data1;
 
-    //     if (transmissionState == RADIOLIB_ERR_NONE)
-    //     {
-    //         // packet was successfully sent
-    //         Serial.println(F("transmission finished!"));
+        lastSignalMillis = currentMillis;
+    }
 
-    //         // NOTE: when using interrupt-driven transmit method,
-    //         //       it is not possible to automatically measure
-    //         //       transmission data rate using getDataRate()
-    //     }
-    //     else
-    //     {
-    //         Serial.print(F("failed, code "));
-    //         Serial.println(transmissionState);
-    //     }
+    if (currentMillis - lastSignalMillis > INTERVAL_MS_SIGNAL_LOST)
+    {
+        lostConnection();
+        recv_status = false;
+    } else {
+        recv_status = true;
+    }
+}
 
-    //     // clean up after transmission is finished
-    //     // this will ensure transmitter is disabled,
-    //     // RF switch is powered down etc.
-    //     radio.finishTransmit();
-
-    //     // wait a second before transmitting again
-    //     delay(200);
-
-    //     // send another one
-    //     Serial.print(F("[nRF24] Sending another packet ... "));
-
-    //     // you can transmit C-string or Arduino string up to
-    //     // 32 characters long
-    //     String str = "Hello World! #" + String(count++);
-    //     transmissionState = radio.startTransmit(str);
-
-    //     // you can also transmit byte array up to 256 bytes long
-    //     /*
-    //       byte byteArr[] = {0x01, 0x23, 0x45, 0x67,
-    //                         0x89, 0xAB, 0xCD, 0xEF};
-    //       int state = radio.startTransmit(byteArr, 8);
-    //     */
-    // }
+void lostConnection()
+{
+    Serial.println("We have lost connection, preventing unwanted behavior");
+    delay(INTERVAL_MS_SIGNAL_RETRY);
 }

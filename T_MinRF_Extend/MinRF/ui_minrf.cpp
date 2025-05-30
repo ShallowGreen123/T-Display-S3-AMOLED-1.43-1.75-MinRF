@@ -357,7 +357,7 @@ static void create2(lv_obj_t *parent)
 }
 
 static void entry2(void) {
-    scr2_timer = lv_timer_create(rf_lr1121_timer, ui_nfr24_get_interval() * 1000, NULL);
+    scr2_timer = lv_timer_create(rf_lr1121_timer, ui_nrf24_get_interval() * 1000, NULL);
 
     ui_lr1121_init();
 }
@@ -399,11 +399,12 @@ static void scr3_btn_event_cb(lv_event_t * e)
 static void nrf24_mode_switch(lv_event_t * e)
 {
     if(e->code == LV_EVENT_CLICKED){
-        nrf24_mode = !nrf24_mode;
+        bool mode = !ui_nrf24_get_mode();
+        ui_nrf24_set_mode(mode);
     }
 }
 
-char * nrf24_send(char *text)
+char * scr3_nrf24_send_info(char *text)
 {
     lv_snprintf(scr3_buf, 1024,
                             "             NRF24 SEND             \n"
@@ -414,27 +415,28 @@ char * nrf24_send(char *text)
                             "------------------------------------\n"
                             "   Send: %s\n"
                             "------------------------------------\n", 
-                            ui_nfr24_get_freq(), ui_nfr24_get_bw(),
-                            ui_nfr24_get_power(), ui_nfr24_get_interval(),
+                            ui_nrf24_get_freq(), ui_nrf24_get_bw(),
+                            ui_nrf24_get_power(), ui_nrf24_get_interval(),
                             text);
 
     
     return scr3_buf;
 }
 
-char *nrf24_recv(void)
+char *scr3_nrf24_recv_info(void)
 {
     lv_snprintf(scr3_buf, 1024,
                             "             NRF24 RECV             \n"
                             " ---------------------------------- \n"
                             "   Freq:%0.0fM       BW:%0.0fK      \n"
                             "------------------------------------\n"
-                            "   Power:%02d        RSSI:%02d  \n"
+                            "   Power:%02d        Connect:%s\n"
                             "------------------------------------\n"
-                            "   Recv: \n"
+                            "   Recv: %d\n"
                             "------------------------------------\n", 
-                            ui_nfr24_get_freq(), ui_nfr24_get_bw(),
-                            ui_nfr24_get_power(), ui_nfr24_get_interval());
+                            ui_nrf24_get_freq(), ui_nrf24_get_bw(),
+                            ui_nrf24_get_power(), ui_nrf24_get_recv_status()? "#00ff00 TRUE#":"#ff0000 FALSE#", 
+                            ui_nrf24_get_recv_data());
 
     
     return scr3_buf;
@@ -442,15 +444,16 @@ char *nrf24_recv(void)
 
 void rf_nrf24_timer(lv_timer_t *t)
 {
-    if(nrf24_mode)
+    if(!ui_nrf24_get_mode())
     {
         static int cnt = 0;
         char buf[30];
         lv_snprintf(buf, 30, "[%d] TX num %d", ui_get_tick() / 1000, cnt++);
-        ui_nfr24_send();
-        lv_label_set_text_fmt(scr3_lab, "%s", nrf24_send(buf));
+        ui_nrf24_send();
+        lv_label_set_text_fmt(scr3_lab, "%s", scr3_nrf24_send_info(buf));
     } else {
-        lv_label_set_text_fmt(scr3_lab, "%s", nrf24_recv());
+        ui_nrf24_recv();
+        lv_label_set_text_fmt(scr3_lab, "%s", scr3_nrf24_recv_info());
     }
 }
 
@@ -485,16 +488,17 @@ static void create3(lv_obj_t *parent)
 
     scr3_lab = lv_label_create(parent);
     lv_obj_set_style_text_font(scr3_lab, &Font_Mono_Bold_20, 0);
-    lv_label_set_text_fmt(scr3_lab, "%s", nrf24_send("NRF24"));
+    lv_label_set_text_fmt(scr3_lab, "%s", scr3_nrf24_send_info("NRF24"));
     lv_obj_align(scr3_lab, LV_ALIGN_CENTER, 0, -20);
+    lv_label_set_recolor(scr3_lab, true); 
 
     scr_back_btn_create(parent, scr3_btn_event_cb);
 }
 
 static void entry3(void) {
-    scr3_timer = lv_timer_create(rf_nrf24_timer, ui_nfr24_get_interval() * 1000, NULL);
+    scr3_timer = lv_timer_create(rf_nrf24_timer, ui_nrf24_get_interval() * 1000, NULL);
 
-    ui_nfr24_init();
+    ui_nrf24_init();
 }
 static void exit3(void) {
     if(scr3_timer) {
@@ -503,7 +507,10 @@ static void exit3(void) {
     }
 }
 static void destroy3(void) { 
-
+    if(scr3_buf) {
+        heap_caps_free(scr3_buf);
+        scr3_buf = NULL;
+    }
 }
 
 static scr_lifecycle_t screen3 = {
@@ -560,9 +567,9 @@ void ui_minrf_entry(void)
     scr_mgr_init();
     // scr_mgr_set_bg_color(EPD_COLOR_BG);
     scr_mgr_register(SCREEN0_ID,   &screen0);    // menu
-    scr_mgr_register(SCREEN1_ID,   &screen1);    // menu
-    scr_mgr_register(SCREEN2_ID,   &screen2);    // menu
-    scr_mgr_register(SCREEN3_ID,   &screen3);    // menu
+    scr_mgr_register(SCREEN1_ID,   &screen1);    // CC1101
+    scr_mgr_register(SCREEN2_ID,   &screen2);    // LR1121
+    scr_mgr_register(SCREEN3_ID,   &screen3);    // NRF24
     scr_mgr_register(SCREEN4_ID,   &screen4);    // menu
 
     scr_mgr_switch(SCREEN0_ID, false); // set root screen

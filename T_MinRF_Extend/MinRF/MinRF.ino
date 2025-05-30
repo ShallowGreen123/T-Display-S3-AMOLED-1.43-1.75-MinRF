@@ -417,7 +417,7 @@ int nrf24_spi_init(void)
     rfspi.end();
     rfspi.begin(BOARD_SPI_SCK, BOARD_SPI_MISO, BOARD_SPI_MOSI, NRF24L01_CS);
 
-    return nfr24_init();
+    return nrf24_init();
 }
 
 bool st32r2916_spi_init(void)
@@ -497,7 +497,7 @@ void setup()
     for(int i = 0; i < 3; i++)
     {
         nrf24_init_flag = nrf24_spi_init();
-        if(nrf24_init_flag == RADIOLIB_ERR_NONE) {
+        if(nrf24_init_flag == true) {
             break;
         }
         delay(500);
@@ -523,12 +523,19 @@ void loop()
     delay(1);
     button.handle();
 
-    if(scr_mgr_get_top_id() > SCREEN0_ID){
+    if(scr_mgr_get_top_id() == SCREEN2_ID){     // LR1121
         if(xSemaphoreTake(radioLock, portMAX_DELAY) == pdTRUE) {
             lr1121_recv();
             xSemaphoreGive(radioLock);
         }
     }
+
+    // if(scr_mgr_get_top_id() == SCREEN3_ID){     // NRF24
+    //     if(xSemaphoreTake(radioLock, portMAX_DELAY) == pdTRUE) {
+    //         nrf24_recv();
+    //         xSemaphoreGive(radioLock);
+    //     }
+    // }
 
     loopNFCReader();
 }
