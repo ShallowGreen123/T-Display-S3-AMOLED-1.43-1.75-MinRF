@@ -91,7 +91,8 @@
 
         #else // !defined (SPI_UART) && !defined (SOFTSPI)
             #include <SPI.h>
-            #define _SPI SPI
+            extern SPIClass rfspi;
+            #define _SPI rfspi
         #endif // !defined (SPI_UART) && !defined (SOFTSPI)
 
     #else // defined (ARDUINO) && !defined (__arm__) && !defined (__ARDUINO_X86__)
