@@ -65,8 +65,9 @@ float ui_cc1101_get_bw(void);
 int ui_cc1101_get_power(void);
 int ui_cc1101_get_interval(void);
 void ui_cc1101_init(void);
-void ui_cc1101_send(void);
-
+void ui_cc1101_send(char *text);
+bool ui_cc1101_get_mode(void);     // 0: send ; 1: recv
+void ui_cc1101_set_mode(bool mode);
 // LR1121
 float ui_lr1121_get_freq(void);
 float ui_lr1121_get_bw(void);
@@ -74,7 +75,7 @@ int ui_lr1121_get_power(void);
 int ui_lr1121_get_interval(void);
 void ui_lr1121_init(void);
 void ui_lr1121_send(char *text);
-bool ui_lr1121_get_mode(void);
+bool ui_lr1121_get_mode(void);      // 0: send ; 1: recv
 void ui_lr1121_set_mode(bool mode);
 
 // NRF24

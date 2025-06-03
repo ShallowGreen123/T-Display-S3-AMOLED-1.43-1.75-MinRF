@@ -12,82 +12,43 @@
 // IRQ pin:   2
 // NRST pin:  3
 // BUSY pin:  9
-LR1121 radio = new Module(LR1121_CS, LR1121_DIO9, LR1121_RST, LR1121_BUSY, rfspi, RADIOLIB_DEFAULT_SPI_SETTINGS);
-
-// save transmission state between loops
-static int transmissionState = RADIOLIB_ERR_NONE;
+LR1121 radio = new Module(LR1121_CS, LR1121_DIO9, LR1121_RST, LR1121_BUSY);
 
 // flag to indicate that a packet was sent
-static volatile bool transmittedFlag = false;
-static int count = 0;
-
-// flag to indicate that a packet was recv
 static volatile bool receivedFlag = false;
-static bool lr1121_mode = 0;  // 0: send ; 1: recv
-String lr1121_rssi = "0dBm";
-String lr1121_snr = "0dB";
-String lr1121_payload = "0";
+static String rssi = "0dBm";
+static String snr = "0dB";
+static String payload = "0";
 
-static void setSendFlag(void)
-{
-    // we sent a packet, set the flag
-    transmittedFlag = true;
-}
-
-static void setRecvFlag(void)
+static void setFlag(void)
 {
     // we sent a packet, set the flag
     receivedFlag = true;
 }
 
-bool lr1121_get_mode(void)
+void setup(void)
 {
-    return lr1121_mode;
-}
+    Serial.begin(115200);
+    
+    // pinMode(LR1121_CS, OUTPUT);
+    // pinMode(LR1121_RST, OUTPUT);
+    pinMode(CC1101_CS, OUTPUT);
+    pinMode(NRF24L01_CE, OUTPUT);
+    // pinMode(NRF24L01_CS, OUTPUT);
+    pinMode(ST25R3916_BSS, OUTPUT);
+    // pinMode(ST25R3916_EN, OUTPUT);
 
-void lr1121_set_mode(bool mode)
-{
-    lr1121_mode = mode; // 0: send ; 1: recv
+    // digitalWrite(LR1121_CS, HIGH);
+    // digitalWrite(LR1121_RST, LOW);
+    digitalWrite(CC1101_CS, HIGH);
+    digitalWrite(NRF24L01_CS, HIGH);
+    // digitalWrite(NRF24L01_CE, HIGH);
+    digitalWrite(ST25R3916_BSS, HIGH);
+    // digitalWrite(ST25R3916_EN, LOW);
 
-    if(lr1121_mode)
-    {
-        radio.clearPacketSentAction();
-        radio.setPacketReceivedAction(setRecvFlag);
+    SPI.begin(LR1121_SCK, LR1121_MISO, LR1121_MOSI, LR1121_CS);
 
-        radio.finishTransmit();
-
-        // start listening for LoRa packets
-        Serial.print(F("LR1121 Starting to listen ... "));
-        int state = radio.startReceive();
-        if (state == RADIOLIB_ERR_NONE) {
-            Serial.println(F("success!"));
-        } else {
-            Serial.print(F("failed, code "));
-            Serial.println(state);
-        }
-    }
-    else
-    {
-        // set the function that will be called
-        // when new packet is received
-        radio.clearPacketReceivedAction();
-        radio.setPacketSentAction(setSendFlag);
-
-        // start transmitting the first packet
-        Serial.print(F("[LR1121] Sending first packet ... "));
-
-        // you can transmit C-string or Arduino string up to
-        // 256 characters long
-
-        // start listening for LoRa packets
-        transmissionState = radio.startTransmit("Hello World!");
-        // radio.startTransmit((uint8_t *)&count, 4);
-    }
-}
-
-int lr1121_init(void)
-{
-    Serial.print(F("[LR1121] Initializing ... "));
+    Serial.print(F("[Radio] Initializing ... "));
     int state = radio.begin();
     if (state == RADIOLIB_ERR_NONE)
     {
@@ -95,9 +56,8 @@ int lr1121_init(void)
     }
     else
     {
-        Serial.print(F("failed, code "));
+        Serial.println(F("failed!"));
         Serial.println(state);
-        return state;
     }
 
     /*
@@ -227,72 +187,23 @@ int lr1121_init(void)
     // LR1121 TCXO Voltage 2.85~3.15V
     radio.setTCXO(3.0);
 
-    lr1121_set_mode(lr1121_get_mode());
+    // set the function that will be called
+    // when new packet is received
+    radio.setPacketReceivedAction(setFlag);
 
-    return RADIOLIB_ERR_NONE;
-}
-
-void lr1121_send(char *text)
-{
-    // check if the previous transmission finished
-    if (transmittedFlag)
-    {
-        // reset flag
-        transmittedFlag = false;
-
-        if (transmissionState == RADIOLIB_ERR_NONE)
-        {
-            // packet was successfully sent
-            Serial.println(F("transmission finished!"));
-
-            // NOTE: when using interrupt-driven transmit method,
-            //       it is not possible to automatically measure
-            //       transmission data rate using getDataRate()
-        }
-        else
-        {
-            Serial.print(F("failed, code "));
-            Serial.println(transmissionState);
-        }
-
-        // clean up after transmission is finished
-        // this will ensure transmitter is disabled,
-        // RF switch is powered down etc.
-        radio.finishTransmit();
-
-        // wait a second before transmitting again
-        // delay(100);
-
-        // send another one
-        Serial.print(F("[LR1121] Sending another packet ... "));
-
-        // you can transmit C-string or Arduino string up to
-        // 256 characters long
-        // String str = "Hello World! #" + String(count++);
-        transmissionState = radio.startTransmit(text);
-        // transmissionState = radio.startTransmit((uint8_t *)&count, 4);
-        if (transmissionState == RADIOLIB_ERR_NONE) {
-            // packet was successfully sent
-            Serial.println(text);
-
-            // NOTE: when using interrupt-driven transmit method,
-            //       it is not possible to automatically measure
-            //       transmission data rate using getDataRate()
-        } else {
-            Serial.print(F("failed, code "));
-            Serial.println(transmissionState);
-        }
-
-        // you can also transmit byte array up to 256 bytes long
-        /*
-          byte byteArr[] = {0x01, 0x23, 0x45, 0x67,
-                            0x89, 0xAB, 0xCD, 0xEF};
-          transmissionState = radio.startTransmit(byteArr, 8);
-        */
+    // start listening for LoRa packets
+    Serial.print(F("Radio Starting to listen ... "));
+    state = radio.startReceive();
+    if (state == RADIOLIB_ERR_NONE) {
+        Serial.println(F("success!"));
+    } else {
+        Serial.print(F("failed, code "));
+        Serial.println(state);
     }
+
 }
 
-void lr1121_recv(void)
+void loop(void)
 {
     // check if the flag is set
     if (receivedFlag) {
@@ -301,7 +212,7 @@ void lr1121_recv(void)
         receivedFlag = false;
 
         // you can read received data as an Arduino String
-        int state = radio.readData(lr1121_payload);
+        int state = radio.readData(payload);
 
         // you can also read received data as byte array
         /*
@@ -311,23 +222,23 @@ void lr1121_recv(void)
 
         if (state == RADIOLIB_ERR_NONE) {
 
-            lr1121_rssi = String(radio.getRSSI()) + "dBm";
-            lr1121_snr = String(radio.getSNR()) + "dB";
+            rssi = String(radio.getRSSI()) + "dBm";
+            snr = String(radio.getSNR()) + "dB";
 
             // packet was successfully received
-            Serial.println(F("LR1121 Received packet!"));
+            Serial.println(F("Radio Received packet!"));
 
             // print data of the packet
-            Serial.print(F("LR1121 Data:\t\t"));
-            Serial.println(lr1121_payload);
+            Serial.print(F("Radio Data:\t\t"));
+            Serial.println(payload);
 
             // print RSSI (Received Signal Strength Indicator)
-            Serial.print(F("LR1121 RSSI:\t\t"));
-            Serial.println(lr1121_rssi);
+            Serial.print(F("Radio RSSI:\t\t"));
+            Serial.println(rssi);
 
             // print SNR (Signal-to-Noise Ratio)
-            Serial.print(F("LR1121 SNR:\t\t"));
-            Serial.println(lr1121_snr);
+            Serial.print(F("Radio SNR:\t\t"));
+            Serial.println(snr);
 
         } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
             // packet was received, but is malformed

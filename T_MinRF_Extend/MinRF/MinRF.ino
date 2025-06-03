@@ -523,6 +523,13 @@ void loop()
     delay(1);
     button.handle();
 
+    if(scr_mgr_get_top_id() == SCREEN1_ID){     // CC1101
+        if(xSemaphoreTake(radioLock, portMAX_DELAY) == pdTRUE) {
+            cc1101_recv();
+            xSemaphoreGive(radioLock);
+        }
+    }
+
     if(scr_mgr_get_top_id() == SCREEN2_ID){     // LR1121
         if(xSemaphoreTake(radioLock, portMAX_DELAY) == pdTRUE) {
             lr1121_recv();

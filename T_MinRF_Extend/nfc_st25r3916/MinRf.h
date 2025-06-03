@@ -2,6 +2,45 @@
 
 #include "Arduino.h"
 #include <SPI.h>
+#include "RadioLib.h"
+
+extern SPIClass rfspi;
+
+// #define LR1121_TEST
+// #define CC1101_TEST
+#define NRF24_TEST
+
+extern int cc1101_init_flag;
+extern int lr1121_init_flag;
+extern int nrf24_init_flag;
+extern int st32r2916_init_flag;
+
+extern SemaphoreHandle_t radioLock;
+
+// LR1121
+extern bool lr1121_get_mode(void);
+extern void lr1121_set_mode(bool mode);
+extern int lr1121_init(void);
+extern void lr1121_send(char *text);
+extern void lr1121_recv(void);
+
+extern int cc1101_init(void);
+extern void cc1101_loop(void);
+
+// NRF24
+extern bool nrf24_get_mode(void);
+extern void nrf24_set_mode(bool mode);
+extern int nrf24_init(void);
+extern void nrf24_loop(void);
+extern void nrf24_recv(void);
+extern uint8_t nrf24_get_recv_data(void);
+extern bool nrf24_get_recv_status(void);
+
+// INIT
+int cc1101_spi_init(void);
+int lr1121_spi_init(void);
+int nrf24_spi_init(void);
+bool st32r2916_spi_init(void);
 
 #if 1
 // Frequency define 

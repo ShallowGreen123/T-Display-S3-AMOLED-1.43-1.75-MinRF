@@ -11,6 +11,10 @@ extern String lr1121_rssi;
 extern String lr1121_snr;
 extern String lr1121_payload;
 
+extern String cc1101_rssi;
+extern String cc1101_snr;
+extern String cc1101_payload;
+
 
 uint32_t EMBED_COLOR_BG         = 0x161823;  // UI 的背景色
 uint32_t EMBED_COLOR_FOCUS_ON   = 0x91B821;  // 组件选中时的颜色
@@ -122,7 +126,6 @@ static scr_lifecycle_t screen0 = {
 lv_timer_t *scr1_timer = NULL;
 lv_obj_t *scr1_lab = NULL;
 char *scr1_buf = NULL;
-bool cc1101_mode = 1;
 
 static void scr1_btn_event_cb(lv_event_t * e)
 {
@@ -134,11 +137,12 @@ static void scr1_btn_event_cb(lv_event_t * e)
 static void cc1101_mode_switch(lv_event_t * e)
 {
     if(e->code == LV_EVENT_CLICKED){
-        cc1101_mode = !cc1101_mode;
+        bool mode = !ui_cc1101_get_mode();
+        ui_cc1101_set_mode(mode);
     }
 }
 
-char * cc1101_send(const char *text)
+char * scr1_cc1101_send_info(const char *text)
 {
     lv_snprintf(scr1_buf, 1024,
                             "             CC1101 SEND            \n"
@@ -147,7 +151,7 @@ char * cc1101_send(const char *text)
                             "------------------------------------\n"
                             "   Power:%d        Interval:%02d     \n"
                             "------------------------------------\n"
-                            "   Send: %s\n"
+                            "   Send: #0000FF %s #\n"
                             "------------------------------------\n", 
                             ui_cc1101_get_freq(), ui_cc1101_get_bw(),
                             ui_cc1101_get_power(), ui_cc1101_get_interval(),
@@ -156,33 +160,35 @@ char * cc1101_send(const char *text)
     return scr1_buf;
 }
 
-char *cc1101_recv(void)
+char *scr1_cc1101_recv_info(void)
 {
     lv_snprintf(scr1_buf, 1024,
                             "            CC1101 RECV             \n"
                             " ---------------------------------- \n"
                             "   Freq:%0.0fM       BW:%0.0fK      \n"
                             "------------------------------------\n"
-                            "   Power:%02d        RSSI:%02d  \n"
+                            "   Power:%02d        RSSI:%s \n"
                             "------------------------------------\n"
-                            "   Recv: \n"
+                            "   Recv: #00FF00 %s #\n"
                             "------------------------------------\n", 
                             ui_cc1101_get_freq(), ui_cc1101_get_bw(),
-                            ui_cc1101_get_power(), ui_cc1101_get_interval());
+                            ui_cc1101_get_power(), cc1101_rssi.c_str(), 
+                            cc1101_payload.c_str());
 
     return scr1_buf;
 }
 
 void rf_cc1101_timer(lv_timer_t *t)
 {
-    if(cc1101_mode)
+    if(!ui_cc1101_get_mode())
     {
         static int cnt = 0;
         char buf[30];
-        lv_snprintf(buf, 30, "[%d] TX num %d", ui_get_tick() / 1000, cnt++);
-        lv_label_set_text_fmt(scr1_lab, "%s", cc1101_send(buf));
+        lv_snprintf(buf, 30, "[%d] CC1101 %d", ui_get_tick() / 1000, cnt++);
+        ui_cc1101_send(buf);
+        lv_label_set_text_fmt(scr1_lab, "%s", scr1_cc1101_send_info(buf));
     } else {
-        lv_label_set_text_fmt(scr1_lab, "%s", cc1101_recv());
+        lv_label_set_text_fmt(scr1_lab, "%s", scr1_cc1101_recv_info());
     }
 }
 
@@ -192,9 +198,9 @@ static void create1(lv_obj_t *parent)
 
     scr1_lab = lv_label_create(parent);
     lv_obj_set_style_text_font(scr1_lab, &Font_Mono_Bold_20, 0);
-    lv_label_set_text_fmt(scr1_lab, "%s", cc1101_send("hello"));
+    lv_label_set_text_fmt(scr1_lab, "%s", scr1_cc1101_send_info("hello"));
     lv_obj_align(scr1_lab, LV_ALIGN_CENTER, 0, -20);
-    lv_obj_center(scr1_lab);
+    lv_label_set_recolor(scr1_lab, true); 
 
     lv_obj_t *ui_Button1 = lv_btn_create(parent);
     lv_obj_set_size(ui_Button1, 89, 50);
@@ -277,7 +283,7 @@ char * scr2_lr1121_send_info(char *text)
                             "------------------------------------\n"
                             "   Power:%02d        Interval:%02d  \n"
                             "------------------------------------\n"
-                            "   Send: %s\n"
+                            "   Send: #0000FF %s #\n"
                             "------------------------------------\n", 
                             ui_lr1121_get_freq(), ui_lr1121_get_bw(),
                             ui_lr1121_get_power(), ui_lr1121_get_interval(),
@@ -296,7 +302,7 @@ char *scr2_lr1121_recv_info(void)
                             "------------------------------------\n"
                             "   Power:%02d        RSSI:%s  \n"
                             "------------------------------------\n"
-                            "   Recv: %s\n"
+                            "   Recv: #00FF00 %s #\n"
                             "------------------------------------\n",
                             ui_lr1121_get_freq(), ui_lr1121_get_bw(),
                             ui_lr1121_get_power(), lr1121_rssi.c_str(),
@@ -352,6 +358,7 @@ static void create2(lv_obj_t *parent)
     lv_obj_set_style_text_font(scr2_lab, &Font_Mono_Bold_20, 0);
     lv_label_set_text_fmt(scr2_lab, "%s", scr2_lr1121_send_info("L1121"));
     lv_obj_align(scr2_lab, LV_ALIGN_CENTER, 0, -20);
+    lv_label_set_recolor(scr2_lab, true); 
 
     scr_back_btn_create(parent, scr2_btn_event_cb);
 }
@@ -387,7 +394,6 @@ static scr_lifecycle_t screen2 = {
 static lv_timer_t *scr3_timer = NULL;
 static lv_obj_t *scr3_lab = NULL;
 static char *scr3_buf = NULL;
-static bool nrf24_mode = 1;
 
 static void scr3_btn_event_cb(lv_event_t * e)
 {
@@ -413,7 +419,7 @@ char * scr3_nrf24_send_info(char *text)
                             "------------------------------------\n"
                             "   Power:%02d        Interval:%02d  \n"
                             "------------------------------------\n"
-                            "   Send: %s\n"
+                            "   Send: #0000FF %s #\n"
                             "------------------------------------\n", 
                             ui_nrf24_get_freq(), ui_nrf24_get_bw(),
                             ui_nrf24_get_power(), ui_nrf24_get_interval(),
@@ -432,7 +438,7 @@ char *scr3_nrf24_recv_info(void)
                             "------------------------------------\n"
                             "   Power:%02d        Connect:%s\n"
                             "------------------------------------\n"
-                            "   Recv: %d\n"
+                            "   Recv: #0000FF %d #\n"
                             "------------------------------------\n", 
                             ui_nrf24_get_freq(), ui_nrf24_get_bw(),
                             ui_nrf24_get_power(), ui_nrf24_get_recv_status()? "#00ff00 TRUE#":"#ff0000 FALSE#", 

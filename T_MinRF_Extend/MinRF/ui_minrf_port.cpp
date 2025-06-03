@@ -17,13 +17,16 @@ float ui_cc1101_get_bw(void)     { return 85.0; }
 int ui_cc1101_get_power(void)    { return 22; }
 int ui_cc1101_get_interval(void) { return 1; }
 void ui_cc1101_init(void) { cc1101_init(); }
-void ui_cc1101_send(void) 
+void ui_cc1101_send(char *text) 
 { 
     if(xSemaphoreTake(radioLock, portMAX_DELAY) == pdTRUE) {
-        cc1101_loop();
+        cc1101_send(text);
         xSemaphoreGive(radioLock);
     }
 }
+bool ui_cc1101_get_mode(void) { return cc1101_get_mode(); }     // 0: send ; 1: recv
+void ui_cc1101_set_mode(bool mode) { cc1101_set_mode(mode); }
+
 
 // LR1121
 float ui_lr1121_get_freq(void)   { return 868.0; }
